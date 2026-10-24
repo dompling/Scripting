@@ -1,0 +1,42 @@
+{
+  "icon" : "arrow.trianglehead.2.clockwise.rotate.90",
+  "localizedNames" : {
+    "it" : "",
+    "zh" : "",
+    "ja" : "",
+    "de" : "",
+    "ru" : "",
+    "pt" : "",
+    "fr" : "",
+    "es" : "",
+    "en" : ""
+  },
+  "version" : "1.0.0",
+  "permissions" : null,
+  "iconImage" : null,
+  "runInApp" : false,
+  "color" : "#2686C5",
+  "intentInputTypes" : [
+    "text"
+  ],
+  "contributors" : [
+
+  ],
+  "author" : null,
+  "remoteDefinitionId" : null,
+  "remoteResource" : null,
+  "localizedDescriptions" : {
+    "it" : "",
+    "zh" : "",
+    "ja" : "",
+    "de" : "",
+    "ru" : "",
+    "pt" : "",
+    "fr" : "",
+    "es" : "",
+    "en" : ""
+  },
+  "name" : "RefreshSideStore",
+  "description" : "SideStore 签名倒计时 · 马蹄圈 · RefreshSideStore",
+  "entry" : "index.tsx"
+}
