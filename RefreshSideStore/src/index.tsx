@@ -1,4 +1,4 @@
-import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
+import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Notification, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
 import { shortDate, type AppRecord, type AppSort } from "./model"
 import { DEFAULT_BACKGROUNDS, normalizeBackground } from "./appearance"
 import { getSettings, readWidgetState, saveRppApps, saveSettings, Settings, WidgetState } from "./runtime"
@@ -165,7 +165,54 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
 
 async function run() {
   const settings = getSettings()
-  const action = Script.queryParameters.action
+  const rawParam = (Widget.parameter ?? "").trim()
+  const action = (Script.queryParameters.action ?? "").trim()
+
+  // 当通过小组件点击（配置了参数 scan 或 扫描自签），或者 URL Scheme 带有 action=scan 时，直接触发静默扫描
+  if (rawParam === "scan" || rawParam === "扫描自签" || action === "scan") {
+    try {
+      HapticFeedback.lightImpact()
+
+      // 1. 扫描前检查网络环境：必须在 Wi-Fi 下才可建立隧道
+      try {
+        const network = await Device.getNetworkState()
+        if (network.status !== "satisfied" || !network.interfaces.includes("wifi")) {
+          HapticFeedback.lightImpact()
+          await Notification.schedule({
+            title: "运行参数「扫描自签」仅在 Wi-Fi 局域网隧道下生效，请连接 Wi-Fi 后重试",
+            silent: true,
+          })
+          Script.exit()
+          return
+        }
+      } catch {
+        // 部分环境不支持检测则继续尝试
+      }
+
+      await Script.requestAccess(["fileSystem", "vpn", "localDevVPN"])
+      const result = await readExpiryViaRpp(rppHost(), Number(rppPort()))
+      saveRppApps(result.apps)
+      await readWidgetState(getSettings())
+      Widget.reloadAll()
+      try {
+        (Widget as any).reloadUserWidgets?.()
+      } catch {}
+      HapticFeedback.lightImpact()
+      await Notification.schedule({
+        title: `扫描完成，读取到 ${result.apps.length} 个自签 App，到期时间已同步至小组件`,
+        silent: true,
+      })
+    } catch (error) {
+      HapticFeedback.lightImpact()
+      await Notification.schedule({
+        title: "运行参数「扫描自签」仅在 Wi-Fi 局域网隧道下生效，请连接 Wi-Fi 后重试",
+        silent: true,
+      })
+    }
+    Script.exit()
+    return
+  }
+
   if (action === "sidestore" || action === "livecontainer") {
     const url = action === "sidestore" ? settings.sideStoreURL : settings.liveContainerURL
     if (!await Safari.openURL(url)) await Dialog.alert({ title: "打开失败", message: "请检查客户端 URL 设置" })
