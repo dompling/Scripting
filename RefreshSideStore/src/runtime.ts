@@ -15,6 +15,7 @@ export type Settings = {
   // Retain stored key names for compatibility; these colors only tint the lower background.
   lightBackground: Color
   darkBackground: Color
+  tintWithProgress?: boolean
   manualExpiry?: number
   estimatedRefreshAt?: number
 }
@@ -33,6 +34,7 @@ export function getSettings(): Settings {
     appSort: saved?.appSort === "manual" || saved?.appSort === "name" ? saved.appSort : "expiry",
     appOrder: Array.isArray(saved?.appOrder) ? saved.appOrder.filter((id): id is string => typeof id === "string") : [],
     ...saved,
+    tintWithProgress: Boolean(saved?.tintWithProgress),
     lightBackground: normalizeBackground(saved?.lightBackground ?? "") ?? DEFAULT_BACKGROUNDS.light,
     darkBackground: normalizeBackground(saved?.darkBackground ?? "") ?? DEFAULT_BACKGROUNDS.dark,
   }
