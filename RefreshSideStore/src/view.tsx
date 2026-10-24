@@ -111,10 +111,14 @@ export function WidgetView({ state, settings, now, medium = false }: {
 }) {
   const app = state.snapshot?.app
   const apps = state.apps ?? (app ? [app] : [])
+  const progressColor = app ? pointColor(countdown(app.expiresAt, now, settings.totalDays).progress) : undefined
+  const lightTint = settings.tintWithProgress && progressColor ? progressColor : settings.lightBackground
+  const darkTint = settings.tintWithProgress && progressColor ? progressColor : settings.darkBackground
+
   return <GeometryReader
     widgetBackground={{
-      light: backgroundGradient(settings.lightBackground, DEFAULT_BACKGROUNDS.light),
-      dark: backgroundGradient(settings.darkBackground, DEFAULT_BACKGROUNDS.dark),
+      light: backgroundGradient(lightTint, DEFAULT_BACKGROUNDS.light),
+      dark: backgroundGradient(darkTint, DEFAULT_BACKGROUNDS.dark),
     }}>
     {geometry => {
       const size = Math.min(geometry.size.height, medium ? geometry.size.width * 0.46 : geometry.size.width)
