@@ -59,14 +59,19 @@ export function Dial({ state, settings, now, size = 160, showRefreshTime = true 
   const status = "证书倒计时/天"
 
   return <ZStack frame={{ width: size, height: size }}>
-    <HStack spacing={p(4)} frame={{ width: p(136), height: p(18) }} position={{ x: p(80), y: p(18) }}>
+    <HStack spacing={p(4)} alignment="center" frame={{ width: p(140), height: p(24) }} position={{ x: p(80), y: p(20) }}>
       <Logo size={p(14)} />
       <Text font={p(12)} fontWeight="bold" foregroundStyle="label" lineLimit={1}>SideStore</Text>
       <Spacer minLength={0} />
-      {showRefreshTime ? <HStack spacing={p(3)} alignment="center" offset={{ x: 0, y: -2 }}>
-        <Image systemName="arrow.trianglehead.2.clockwise.rotate.90" font={p(8.5)} foregroundStyle="secondaryLabel" />
-        <Text font={p(10)} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(now)}</Text>
-      </HStack> : null}
+      {showRefreshTime ? <Button shortcutIndex={0}
+        buttonStyle="plain"
+        frame={{ width: p(24), height: p(24) }}
+        contentShape={{ type: "capsule", style: "circular" }}>
+        <ZStack frame={{ width: p(20), height: p(20) }}
+          background={{ style: colorWithAlpha(markerColor, 0.14), shape: "capsule" }}>
+          <Image systemName="hand.tap.fill" font={p(12)} foregroundStyle="secondaryLabel" />
+        </ZStack>
+      </Button> : null}
     </HStack>
     <PathShape
       frame={{ width: size, height: size }}
@@ -132,11 +137,18 @@ export function WidgetView({ state, settings, now, medium = false }: {
       return <HStack spacing={gap} contentShape={{ type: "rect", cornerRadius: 0 }} frame={{ width: geometry.size.width, height: geometry.size.height, alignment: medium ? "leading" : "center" }}>
         <Dial state={state} settings={settings} now={now} size={size} showRefreshTime={!medium} />
         {medium ? <ZStack frame={{ width: rightWidth, height: size }}>
-          <HStack spacing={3} alignment="center" frame={{ width: rightWidth, height: 18 * scale }}
-            position={{ x: rightWidth / 2, y: 18 * scale - 2 }}>
+          <HStack spacing={3} alignment="center" frame={{ width: rightWidth, height: 24 * scale }}
+            position={{ x: rightWidth / 2, y: 20 * scale }}>
             <Spacer minLength={0} />
-            <Image systemName="arrow.trianglehead.2.clockwise.rotate.90" font={8.5 * scale} foregroundStyle="secondaryLabel" />
-            <Text font={10 * scale} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(now)}</Text>
+            <Button shortcutIndex={0}
+              buttonStyle="plain"
+              frame={{ width: 24 * scale, height: 24 * scale }}
+              contentShape={{ type: "capsule", style: "circular" }}>
+              <ZStack frame={{ width: 20 * scale, height: 20 * scale }}
+                background={{ style: colorWithAlpha(pointColor(countdown(apps[0]?.expiresAt, now, settings.totalDays).progress), 0.14), shape: "capsule" }}>
+                <Image systemName="hand.tap.fill" font={12 * scale} foregroundStyle="secondaryLabel" />
+              </ZStack>
+            </Button>
           </HStack>
           {visibleApps.map((item, index) => {
             const value = countdown(item.expiresAt, now, settings.totalDays)
