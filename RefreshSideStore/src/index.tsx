@@ -1,4 +1,4 @@
-import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Notification, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
+import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Notification, Picker, ReorderableForEach, Script, Section, List, Text, TextField, Toggle, useObservable, useState, Widget } from "scripting"
 import { shortDate, type AppRecord, type AppSort } from "./model"
 import { DEFAULT_BACKGROUNDS, normalizeBackground } from "./appearance"
 import { getSettings, readWidgetState, saveRppApps, saveSettings, Settings, WidgetState } from "./runtime"
@@ -127,16 +127,21 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
         />
       </Section>
 
-      <Section header={<Text>背景颜色</Text>}>
-        <ColorPicker title="明亮模式背景色" value={settings.lightBackground} supportsOpacity={false}
-          onChanged={value => setBackground("lightBackground", value)} />
-        <ColorPicker title="暗黑模式背景色" value={settings.darkBackground} supportsOpacity={false}
-          onChanged={value => setBackground("darkBackground", value)} />
-        <Button title="恢复默认颜色" disabled={busy} action={() => perform(async () => {
-          HapticFeedback.lightImpact()
-          updateSettings({ ...getSettings(), lightBackground: DEFAULT_BACKGROUNDS.light, darkBackground: DEFAULT_BACKGROUNDS.dark })
-          await Dialog.alert({ title: "已恢复", message: "背景颜色已恢复为默认预设！" })
-        })} />
+      <Section header={<Text>底部背景渐变</Text>} footer={<Text>开启“跟随进度颜色”后，底部渐变将自动联动马蹄圈指针颜色变化，无需手动调色。</Text>}>
+        <Toggle title="跟随进度颜色" value={Boolean(settings.tintWithProgress)} onChanged={(enabled: boolean) => {
+          updateSettings({ ...getSettings(), tintWithProgress: enabled })
+        }} />
+        {!settings.tintWithProgress ? <>
+          <ColorPicker title="明亮模式渐变色" value={settings.lightBackground} supportsOpacity={false}
+            onChanged={value => setBackground("lightBackground", value)} />
+          <ColorPicker title="暗黑模式渐变色" value={settings.darkBackground} supportsOpacity={false}
+            onChanged={value => setBackground("darkBackground", value)} />
+          <Button title="恢复默认渐变" disabled={busy} action={() => perform(async () => {
+            HapticFeedback.lightImpact()
+            updateSettings({ ...getSettings(), lightBackground: DEFAULT_BACKGROUNDS.light, darkBackground: DEFAULT_BACKGROUNDS.dark })
+            await Dialog.alert({ title: "已恢复", message: "背景渐变颜色已恢复为默认预设！" })
+          })} />
+        </> : null}
       </Section>
 
       <Section header={<Text>① 隧道连接</Text>} footer={<Text>RemotePairing 端口优先尝试下方填写的值；也会通过 Bonjour 发现，并自动回退尝试 62554 和 49152。</Text>}>
