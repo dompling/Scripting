@@ -42,7 +42,7 @@
 2. **智能自动化**：指令内部**自带时间判定逻辑**（检测距离上次刷新是否超过 5 天），只需配合「连接电源（充电时）」触发即可，未满 5 天绝不无谓打扰，到期自动静默续签并更新小组件！
 3. **桌面小组件点击静默运行**：完美支持在小组件右上角手指处直接触发。
 
-### [↓ 点击获取：RefreshSideStore 全能快捷指令](https://www.icloud.com/shortcuts/5f193cbf79124e31897b01ae069ecc5a)
+### [↓ 点击获取：RefreshSideStore 全能快捷指令](https://www.icloud.com/shortcuts/98233e833b954d55a2838b022b162eeb)
 
 ---
 
