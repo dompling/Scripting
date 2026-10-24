@@ -73,9 +73,9 @@ async function discoverBonjourPorts(log: (message: string) => void, timeoutMs = 
 }
 
 async function candidatePorts(preferred: number, log: (message: string) => void): Promise<number[]> {
-  const bonjour = await discoverBonjourPorts(log)
-  const ports = Array.from(new Set([preferred, ...bonjour, 62554, 49152].filter(validPort)))
-  log(`候选 RemotePairing 端口：${ports.join(", ")}`)
+  // 如果首选端口（即上次成功扫描保存的端口）直接有效，优先极速尝试首选端口，避免等待 Bonjour 漫长的发现超时
+  const ports = Array.from(new Set([preferred, 62554, 49152].filter(validPort)))
+  log(`快速候选端口：${ports.join(", ")}`)
   return ports
 }
 
