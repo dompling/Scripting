@@ -1,4 +1,4 @@
-import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
+import { Button, Color, ColorPicker, Device, HStack, Image, Navigation, NavigationStack, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
 import { shortDate, type AppRecord, type AppSort } from "./model"
 import { DEFAULT_BACKGROUNDS, normalizeBackground } from "./appearance"
 import { getSettings, readWidgetState, saveRppApps, saveSettings, Settings, WidgetState } from "./runtime"
@@ -86,6 +86,20 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
         {state.snapshot ? <Text font="caption" foregroundStyle="secondaryLabel">上次扫描 {shortDate(state.snapshot.readAt)}</Text> : null}
         {state.error ? <Text font="caption" foregroundStyle="systemOrange">{state.error}</Text> : null}
         <Button title={busy ? "正在扫描…" : "扫描自签"} systemImage="antenna.radiowaves.left.and.right" disabled={busy} action={() => perform(async () => {
+          // This is a user-facing reminder only: a VPN path might not expose its
+          // underlying Wi-Fi interface. Never infer that RSD is reachable from
+          // the interface list; the existing TCP/pair-verify probes decide that.
+          try {
+            const network = await Device.getNetworkState()
+            if (network.status !== "satisfied" || !network.interfaces.includes("wifi")) {
+              await Dialog.alert({
+                title: "扫描前检查 Wi-Fi",
+                message: "当前网络路径未检测到 Wi-Fi。建议先连接 Wi-Fi，并确认 Surge 隧道/反射可用后再扫描。若正在使用 VPN、蜂窝或其他网络，可关闭提示后继续尝试。",
+              })
+            }
+          } catch {
+            // Unavailable on some Scripting versions or contexts: scan normally.
+          }
           const result = await readExpiryViaRpp(host, Number(port), () => {})
           saveRppApps(result.apps)
           setState(await readWidgetState(getSettings()))
