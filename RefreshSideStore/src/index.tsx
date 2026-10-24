@@ -1,4 +1,4 @@
-import { Button, Color, ColorPicker, Device, HStack, Image, Navigation, NavigationStack, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
+import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Picker, ReorderableForEach, Script, Section, List, Text, TextField, useObservable, useState, Widget } from "scripting"
 import { shortDate, type AppRecord, type AppSort } from "./model"
 import { DEFAULT_BACKGROUNDS, normalizeBackground } from "./appearance"
 import { getSettings, readWidgetState, saveRppApps, saveSettings, Settings, WidgetState } from "./runtime"
