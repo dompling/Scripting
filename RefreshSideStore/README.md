@@ -12,13 +12,21 @@
 - **外观**：支持亮色/暗色和独立底部渐变颜色选择。
 - **其他来源**：根据运行时支持情况，可读取 `widget_data.json`、SideStore SQLite、`.mobileprovision`、手动到期日或快捷指令回传的估算值。
 
-## 安装方法
+## 一键安装
 
-1. 下载 [RefreshSideStore.scripting](./RefreshSideStore.scripting)。
-2. 传到 iPhone，使用 **Scripting** 打开并导入。
-3. 进入 Scripting 运行 **RefreshSideStore**，按需完成配对或数据来源设置。
-4. 添加 **Scripting 桌面小组件**，绑定此组件；在小组件 Shortcuts 动作列表中将所需快捷指令放在第一位。
-5. 若使用 RPP 读取：在组件设置中通过灵动岛验证码配对，或导入现有配对记录；使用合适的反射地址（例如 Surge 的 `10.7.0.1`）进行只读扫描。
+### [⬇️ 点击一键安装 RefreshSideStore](https://www.scripting.fun/import_scripts/?urls=%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fdompling%2FScripting%2Fmain%2Fdist%2FRefreshSideStore.zip%22%5D)
+
+请在 **iPhone / iPad 的 Safari** 中打开上述链接，进入 Scripting 导入页面。发布文件：[RefreshSideStore.zip](../dist/RefreshSideStore.zip)。
+
+> 也可以手动下载 [RefreshSideStore.scripting](./RefreshSideStore.scripting)，通过文件共享面板选择 Scripting 导入；这两个包的组件内容一致。
+
+## 首次设置
+
+1. 完成导入后，在 Scripting 中打开 **RefreshSideStore**，根据需要设置数据来源或配对记录。
+2. 添加 **Scripting 桌面小组件**，绑定此组件；在小组件 Shortcuts 动作列表中将所需快捷指令放在第一位。
+3. 若使用 RPP 读取：在组件设置中通过灵动岛验证码配对，或导入现有配对记录；使用合适的反射地址（例如 Surge 的 `10.7.0.1`）进行只读扫描。
+
+**更新说明：** 一键安装链接指向仓库 `main` 分支最新发布的 ZIP；更新后可重新点击安装，实际是否提示覆盖或重新导入，以 Scripting 的行为为准。本组件目前没有启用后台自动更新。
 
 > **注意**：能通过隧道访问端点，不等于 RPP 配对、RSD 服务发现和 misagent 读取一定成功。桌面小组件也受 iOS 后台运行时间及刷新调度限制，无法保证每次都能在后台完整扫描。
 
@@ -36,7 +44,7 @@
 ```text
 RefreshSideStore/
 ├── README.md                     # 当前使用说明
-├── RefreshSideStore.scripting    # 可直接导入 Scripting 的组件包
+├── RefreshSideStore.scripting    # 手动导入的组件包
 └── src/                          # 组件原始 TypeScript/TSX 源码
     ├── index.tsx
     ├── widget.tsx
