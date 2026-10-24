@@ -1,11 +1,16 @@
 import type { Color, LinearGradient } from "scripting"
 
-export const DEFAULT_BACKGROUNDS = { light: "#F7F9FA", dark: "#282828" } as const
+export const DEFAULT_BACKGROUNDS = { light: "#FFFFFF", dark: "#1C1C1E" } as const
 
 export function normalizeBackground(value: unknown): Color | undefined {
   if (typeof value !== "string") return undefined
   const hex = value.trim().replace(/^#/, "")
-  if (/^[0-9a-f]{6}$/i.test(hex)) return `#${hex.toUpperCase()}`
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
+    const upper = hex.toUpperCase()
+    // 纠正 iOS 原生取色器因浮点取整误差把 1C1C1E 歪成 1B1B1D 的问题
+    if (upper === "1B1B1D") return "#1C1C1E"
+    return `#${upper}`
+  }
   if (/^[0-9a-f]{3}$/i.test(hex)) return `#${hex.split("").map(char => char + char).join("").toUpperCase()}`
   // The native picker can return RGB(A); backgrounds stay opaque with supportsOpacity=false.
   const rgb = /^rgb(a)?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d+(?:\.\d+)?))?\s*\)$/i.exec(value.trim())
@@ -13,7 +18,9 @@ export function normalizeBackground(value: unknown): Color | undefined {
     const channels = rgb.slice(2, 5).map(Number)
     const alpha = rgb[5] == null ? 1 : Number(rgb[5])
     if (channels.every(channel => channel >= 0 && channel <= 255) && alpha >= 0 && alpha <= 1) {
-      return `#${channels.map(channel => Math.round(channel).toString(16).padStart(2, "0")).join("").toUpperCase()}`
+      const hexStr = channels.map(channel => Math.round(channel).toString(16).padStart(2, "0")).join("").toUpperCase()
+      if (hexStr === "1B1B1D") return "#1C1C1E"
+      return `#${hexStr}`
     }
   }
   return undefined
