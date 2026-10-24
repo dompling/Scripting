@@ -65,7 +65,7 @@ export function Dial({ state, settings, now, size = 160, showRefreshTime = true 
       <Spacer minLength={0} />
       {showRefreshTime ? <HStack spacing={p(3)} alignment="center" offset={{ x: 0, y: -2 }}>
         <Image systemName="arrow.trianglehead.2.clockwise.rotate.90" font={p(8.5)} foregroundStyle="secondaryLabel" />
-        <Text font={p(10)} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(state.snapshot?.readAt || undefined)}</Text>
+        <Text font={p(10)} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(now)}</Text>
       </HStack> : null}
     </HStack>
     <PathShape
@@ -132,7 +132,7 @@ export function WidgetView({ state, settings, now, medium = false }: {
             position={{ x: rightWidth / 2, y: 18 * scale - 2 }}>
             <Spacer minLength={0} />
             <Image systemName="arrow.trianglehead.2.clockwise.rotate.90" font={8.5 * scale} foregroundStyle="secondaryLabel" />
-            <Text font={10 * scale} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(state.snapshot?.readAt || undefined)}</Text>
+            <Text font={10 * scale} fontWeight="medium" foregroundStyle="secondaryLabel">{shortTime(now)}</Text>
           </HStack>
           {visibleApps.map((item, index) => {
             const value = countdown(item.expiresAt, now, settings.totalDays)
