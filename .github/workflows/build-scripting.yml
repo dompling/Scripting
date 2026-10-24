@@ -1,0 +1,41 @@
+name: Build Scripting install packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*/src/**'
+      - 'scripts/build_releases.py'
+      - '.github/workflows/build-scripting.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scripting-release-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build all components
+        run: python3 scripts/build_releases.py
+
+      - name: Commit updated installation packages
+        run: |
+          git add -A -- 'dist/*.zip' '*/*.scripting'
+          if git diff --cached --quiet; then
+            echo "No package changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build: update Scripting install packages [skip ci]"
+          git push
