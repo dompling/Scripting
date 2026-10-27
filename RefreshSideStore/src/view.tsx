@@ -3,19 +3,39 @@ import { countdown, shortDate, shortTime } from "./model"
 import { Settings, WidgetState } from "./runtime"
 import { backgroundGradient, DEFAULT_BACKGROUNDS } from "./appearance"
 
+function hexToRgb(hex: string): [number, number, number] {
+  const val = hex.replace("#", "")
+  return [parseInt(val.slice(0, 2), 16), parseInt(val.slice(2, 4), 16), parseInt(val.slice(4, 6), 16)]
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0")
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+const GRADIENT_STOPS: [number, number, number][] = [
+  hexToRgb("#B82020"),
+  hexToRgb("#F08A1D"),
+  hexToRgb("#F5D627"),
+  hexToRgb("#F5D627"),
+  hexToRgb("#89C853"),
+  hexToRgb("#26A67A"),
+]
+
 function pointColor(progress: number): any {
-  if (progress < 0.18) return "#B82020"
-  if (progress < 0.38) return "#F08A1D"
-  if (progress < 0.60) return "#F5D627"
-  if (progress < 0.80) return "#89C853"
-  return "#26A67A"
+  const t = Math.max(0, Math.min(1, progress))
+  const maxIdx = GRADIENT_STOPS.length - 1
+  const pos = t * maxIdx
+  const idx = Math.floor(pos)
+  if (idx >= maxIdx) return rgbToHex(GRADIENT_STOPS[maxIdx][0], GRADIENT_STOPS[maxIdx][1], GRADIENT_STOPS[maxIdx][2])
+  const ratio = pos - idx
+  const [r1, g1, b1] = GRADIENT_STOPS[idx]
+  const [r2, g2, b2] = GRADIENT_STOPS[idx + 1]
+  return rgbToHex(r1 + (r2 - r1) * ratio, g1 + (g2 - g1) * ratio, b1 + (b2 - b1) * ratio)
 }
 
 function colorWithAlpha(hex: string, alpha: number): any {
-  const value = hex.slice(1)
-  const r = parseInt(value.slice(0, 2), 16)
-  const g = parseInt(value.slice(2, 4), 16)
-  const b = parseInt(value.slice(4, 6), 16)
+  const [r, g, b] = hexToRgb(hex)
   return `rgba(${r},${g},${b},${alpha})`
 }
 
