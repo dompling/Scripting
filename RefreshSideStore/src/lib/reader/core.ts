@@ -5,9 +5,8 @@
  * metadata is put in the widget cache.
  */
 import { PairStore } from "../rpp/pairstore"
-import { openDeviceLink, type DeviceLink } from "../rsd/device"
+import { connectReader } from "./connection"
 import { MisagentClient } from "../rsd/misagent"
-import { probeTcp } from "../rsd/probe"
 import { SERVICES } from "../rsd/stream"
 import { listInstalledApps } from "../rsd/installed-apps"
 import { filterInstalledProfiles } from "./installed-filter"
@@ -30,54 +29,6 @@ export async function importPairingRecord(input: string | Uint8Array): Promise<{
   return new PairStore().importRecord(input)
 }
 
-function normalizeHost(raw: string): string {
-  const host = (raw || "").trim()
-  const parts = host.split(".")
-  if (parts.length !== 4 || parts.some(p => !/^\d{1,3}$/.test(p) || Number(p)>255)) {
-    throw new Error(`IP 地址格式错误：${raw}`)
-  }
-  return host
-}
-
-/** Best effort Bonjour discovery, without relying on it for success. */
-async function discoverBonjourPorts(log: OnLog, timeoutMs = 1400): Promise<number[]> {
-  const Bonjour: any = (globalThis as any).Bonjour
-  if (!Bonjour || typeof Bonjour.browse !== "function") return []
-  const ports = new Set<number>()
-  let browser: any = null
-  let finish = () => {}
-  const finished = new Promise<void>(resolve => { finish = resolve })
-  // Timer is armed outside a Bonjour callback per Scripting's runtime constraints.
-  const timer = setTimeout(() => finish(), timeoutMs)
-  try {
-    browser = Bonjour.browse({
-      type: "_remotepairing._tcp",
-      includePeerToPeer: true,
-      onFound: (service: any) => {
-        const port = Number(service?.port)
-        if (Number.isInteger(port) && port >= 1 && port <= 65535) ports.add(port)
-      },
-      onError: () => finish(),
-    })
-    await finished
-  } catch (error) {
-    log(`Bonjour 探测不可用：${String(error)}`)
-  } finally {
-    clearTimeout(timer)
-    try { browser?.stop?.() } catch { /* already closed */ }
-  }
-  return Array.from(ports)
-}
-
-function isNumericPort(n: number): boolean { return Number.isInteger(n) && n > 0 && n <= 65535 }
-
-async function candidatePorts(host: string, preferred: number, log: OnLog): Promise<number[]> {
-  const bonjour = await discoverBonjourPorts(log)
-  const candidates = Array.from(new Set([preferred, ...bonjour, 62554, 49152].filter(isNumericPort)))
-  log(`候选端口：${candidates.join(", ")}`)
-  return candidates
-}
-
 function bundleFromAppId(full: string | null): string | null {
   if (!full) return null
   const match = /^([A-Z0-9]{10})\.(.+)$/.exec(full)
@@ -89,33 +40,7 @@ export interface QueryOptions { host: string, preferredPort: number, log?: OnLog
 
 export async function queryExpiry(options: QueryOptions): Promise<Snapshot> {
   const log = options.log ?? (() => {})
-  const host = normalizeHost(options.host)
-  const pair = new PairStore()
-  if (!pair.hasDeviceIrk()) throw new Error("没有配对记录。请先从 SideInstaller 导出并导入配对文件。")
-  const preferredPort = isNumericPort(options.preferredPort) ? options.preferredPort : 62554
-  const ports = await candidatePorts(host, preferredPort, log)
-  let link: DeviceLink | null = null
-  let chosenPort = 0
-  const failures: string[] = []
-  for (const port of ports) {
-    const probe = await probeTcp(host, port, 1800)
-    if (!probe.open) {
-      log(`${host}:${port} 不可达 (${probe.code ?? "未知"})`)
-      failures.push(`${port}: ${probe.code}`)
-      continue
-    }
-    log(`${host}:${port} 可连接，正在 pair-verify…`)
-    try {
-      link = await openDeviceLink({ address: host, remotedPort: port, stepTimeoutMs: 11000, onStep: log })
-      chosenPort = port
-      break
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      failures.push(`${port}: ${message}`)
-      log(`端口 ${port} 建立隧道失败：${message}`)
-    }
-  }
-  if (!link) throw new Error(`未能建立只读 RSD 会话。${failures.join("；").slice(0, 1200)}`)
+  const { link, host, port: chosenPort } = await connectReader(options.host, options.preferredPort, log)
   try {
     log("隧道已建立，正在读取系统描述文件…")
     const client = await MisagentClient.connect(await link.open(SERVICES.misagent), "AppExpiryReader-readonly")

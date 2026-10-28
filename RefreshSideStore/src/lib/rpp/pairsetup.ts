@@ -99,9 +99,11 @@ export class SocketPeer implements RPPeer {
 
 /** Sends and receives whole frames over a peer, owning one direction's sequence counter. */
 export class PeerFrames {
-  private readonly channel = new RPChannel("device")
-
-  constructor(private readonly peer: RPPeer, private readonly label = "pair-setup") {}
+  constructor(
+    private readonly peer: RPPeer,
+    private readonly label = "pair-setup",
+    readonly channel = new RPChannel("device"),
+  ) {}
 
   async send(payload: unknown): Promise<void> {
     await this.peer.write(this.channel.plain(payload))

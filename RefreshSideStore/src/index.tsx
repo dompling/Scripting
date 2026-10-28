@@ -1,4 +1,5 @@
 import { Button, Color, ColorPicker, HStack, Image, Navigation, NavigationStack, Notification, Picker, ReorderableForEach, Script, Section, List, Text, TextField, Toggle, useObservable, useState, Widget } from "scripting"
+import { ConnectionDiagnostics } from "./connection_diagnostics"
 import { shortDate, type AppRecord, type AppSort } from "./model"
 import { DEFAULT_BACKGROUNDS, normalizeBackground } from "./appearance"
 import { getSettings, readWidgetState, saveRppApps, saveSettings, Settings, WidgetState } from "./runtime"
@@ -26,6 +27,8 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
   const [busy, setBusy] = useState(false)
   const [host, setHost] = useState(rppHost)
   const [port, setPort] = useState(rppPort)
+  const [scanStatus, setScanStatus] = useState("")
+  const [scanLog, setScanLog] = useState("")
   const dragActive = useObservable<any>(null)
 
   function setAppSort(sort: AppSort) {
@@ -100,13 +103,27 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
           } catch {
             // Unavailable on some Scripting versions or contexts: scan normally.
           }
-          const result = await readExpiryViaRpp(host, Number(port), () => {})
+          const lines: string[] = []
+          setScanLog("")
+          const log = (message: string) => {
+            lines.push(`${new Date().toISOString()} ${message}`)
+            if (lines.length > 200) lines.shift()
+            setScanStatus(message)
+            setScanLog(lines.join("\n"))
+          }
+          let result: Awaited<ReturnType<typeof readExpiryViaRpp>>
+          try { result = await readExpiryViaRpp(host, Number(port), log) }
+          catch (error) {
+            log(`扫描失败：${error instanceof Error ? error.message : String(error)}`)
+            throw error
+          }
           saveRppApps(result.apps)
           setState(await readWidgetState(getSettings()))
           Widget.reloadAll()
           setPort(String(result.port))
           await Dialog.alert({ title: "扫描完成", message: `读取 ${result.profilesRead} 份描述文件；系统确认 ${result.installedApps} 个 App。\n已筛选出 ${result.apps.length} 个短期个人开发自签 App。\n使用端口：${result.port}` })
         })} />
+        {scanStatus ? <Text font="caption" foregroundStyle="secondaryLabel">{scanStatus}</Text> : null}
         <Picker title="列表排序" value={settings.appSort} pickerStyle="segmented" onChanged={(value: unknown) => setAppSort(value === "manual" ? "manual" : value === "name" ? "name" : "expiry")}>
           <Text tag="manual">手动</Text>
           <Text tag="expiry">即将到期</Text>
@@ -144,7 +161,11 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
         </> : null}
       </Section>
 
-      <Section header={<Text>① 隧道连接</Text>} footer={<Text>RemotePairing 端口优先尝试下方填写的值；也会通过 Bonjour 发现，并自动回退尝试 62554 和 49152。</Text>}>
+      <Section header={<Text>① 隧道连接</Text>} footer={<Text>优先尝试填写的端口及 62554、49152；失败后解析 Bonjour，并扫描 49152–51200 查找动态配对端口。</Text>}>
+        <Button title="连接检测与日志" systemImage="stethoscope" disabled={busy} action={() => perform(async () => {
+          await Navigation.present({ element: <ConnectionDiagnostics host={host} port={Number(port)} scanLog={scanLog} /> })
+          setPort(rppPort())
+        })} />
         <TextField title="设备反射 IP" value={host} prompt="10.7.0.1" onChanged={(value: string) => { setHost(value); saveRppHost(value) }} />
         <TextField title="RemotePairing 端口" value={port} prompt="62554" onChanged={(value: string) => { setPort(value); saveRppPort(value) }} />
       </Section>
@@ -154,7 +175,7 @@ function SettingsView({ initialState }: { initialState: WidgetState }) {
           <Image systemName={hasRppPairing() ? "checkmark.shield.fill" : "exclamationmark.shield.fill"}
             foregroundStyle={hasRppPairing() ? "systemGreen" : "systemRed"} />
           <Text foregroundStyle={hasRppPairing() ? "systemGreen" : "systemRed"} fontWeight="semibold">
-            {hasRppPairing() ? "已有可用配对记录" : "尚未配对"}
+            {hasRppPairing() ? "已保存配对记录" : "尚未配对"}
           </Text>
         </HStack>
         <Button title={busy ? "正在配对…" : "设备配对（灵动岛验证码）"} systemImage="iphone.gen3" disabled={busy} action={() => perform(async () => {
@@ -180,22 +201,6 @@ async function run() {
     try {
       HapticFeedback.lightImpact()
 
-      // 1. 扫描前检查网络环境：必须在 Wi-Fi 下才可建立隧道
-      try {
-        const network = await Device.getNetworkState()
-        if (network.status !== "satisfied" || !network.interfaces.includes("wifi")) {
-          HapticFeedback.lightImpact()
-          await Notification.schedule({
-            title: "运行参数「扫描自签」仅在 Wi-Fi 局域网隧道下生效，请连接 Wi-Fi 后重试",
-            silent: true,
-          })
-          Script.exit()
-          return
-        }
-      } catch {
-        // 部分环境不支持检测则继续尝试
-      }
-
       await Script.requestAccess(["fileSystem", "vpn", "localDevVPN"])
       const result = await readExpiryViaRpp(rppHost(), Number(rppPort()))
       saveRppApps(result.apps)
@@ -212,7 +217,8 @@ async function run() {
     } catch (error) {
       HapticFeedback.lightImpact()
       await Notification.schedule({
-        title: "运行参数「扫描自签」仅在 Wi-Fi 局域网隧道下生效，请连接 Wi-Fi 后重试",
+        title: "扫描自签失败",
+        body: error instanceof Error ? error.message : String(error),
         silent: true,
       })
     }

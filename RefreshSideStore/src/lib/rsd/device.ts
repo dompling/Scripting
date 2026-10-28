@@ -84,62 +84,82 @@ export async function openDeviceLink(options: OpenDeviceOptions): Promise<Device
   const net = require("node:net")
   const remotePort = options.remotedPort ?? REMOTED_PORT
   const socket = net.createConnection({ host: options.address, port: remotePort })
+  let tunnel: RsdTunnel | null = null
+  let closed = false
+  async function close(): Promise<void> {
+    if (closed) return
+    closed = true
+    // The listener belongs to the pairing connection; keep that connection alive until teardown.
+    try { await tunnel?.close() } catch { /* already closed */ }
+    try { socket.destroy() } catch { /* already closed */ }
+  }
+
   try {
-    await within(timeoutMs, `connecting to remoted at ${options.address}:${remotePort}`,
-      new Promise<void>((resolve, reject) => {
-        socket.once("connect", () => resolve())
-        socket.once("error", reject)
-      }))
+    try {
+      await within(timeoutMs, `connecting to remoted at ${options.address}:${remotePort}`,
+        new Promise<void>((resolve, reject) => {
+          socket.once("connect", () => resolve())
+          socket.once("error", reject)
+        }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`remoted at ${options.address}:${remotePort} could not be reached: ${message}`)
+    }
+
+    const peer = new SocketPeer(socket)
+    const verified = await within(timeoutMs, "pair-verify",
+      new PairVerifyClient({ file, signingKey }, peer).run())
+    say("pair-verified")
+
+    // Envelope sequence continues from pair-verify; encrypted nonces independently start at zero.
+    const channel = await within(timeoutMs, "deriving stream keys",
+      StreamChannel.connect(verified.preSharedKey, peer, verified.channel))
+    const listenerPort = await within(timeoutMs, "createListener",
+      channel.createListener(verified.preSharedKey))
+    say(`the device opened a tunnel listener on ${listenerPort}`)
+
+    const vpn: any = (globalThis as any).VPN
+    if (vpn === undefined) throw new Error("this build has no VPN API")
+    const activeTunnel: RsdTunnel = await within(timeoutMs * 2, "opening the RSD tunnel",
+      vpn.localDevVPN.openRSDTunnel({
+        host: options.address,
+        port: listenerPort,
+        preSharedKey: verified.preSharedKey,
+      }), late => late.close())
+    tunnel = activeTunnel
+    const state = await within(timeoutMs, "reading the RSD tunnel state", activeTunnel.getState())
+    if (typeof state.rsdPort !== "number") {
+      throw new Error(`the tunnel reported no RSD port: ${JSON.stringify(state)}`)
+    }
+    say(`tunnel up — RSD on port ${state.rsdPort} at ${state.serverAddress ?? options.address}`)
+
+    const control = new TunnelStream(await within(timeoutMs, "opening the RSD control connection",
+      connectOn(activeTunnel, state.rsdPort, "the RSD control connection"),
+      async late => { await late.close?.() }))
+    let handshake: RsdHandshake
+    try {
+      handshake = await within(timeoutMs, "the RSD handshake",
+        RsdClient.connect(control, randomBytes(16) as Bytes))
+    } finally {
+      // The service table is complete; release this native tunnel connection slot.
+      try { await control.close() } catch { /* already closed */ }
+    }
+    say(`the device advertised ${handshake.services.size} services`)
+
+    return {
+      handshake,
+      open: async serviceName => {
+        if (closed) throw new Error("the device link is closed")
+        const service = requireService(handshake, serviceName)
+        return new TunnelStream(await within(timeoutMs, `opening ${serviceName}`,
+          connectOn(activeTunnel, service.port, serviceName),
+          async late => { await late.close?.() }))
+      },
+      close,
+    }
   } catch (error) {
-    // The bare socket error ("Connection refused") names no target, and this is the dial whose failure
-    // most often means the reflection underneath it is gone.
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`remoted at ${options.address}:${remotePort} could not be reached: ${message}`)
-  }
-
-  const peer = new SocketPeer(socket)
-  const verified = await within(timeoutMs, "pair-verify",
-    new PairVerifyClient({ file, signingKey }, peer).run())
-  say("pair-verified")
-
-  // 2. the port the device opens for the tunnel.
-  const channel = await StreamChannel.connect(verified.preSharedKey, peer)
-  const listenerPort = await within(timeoutMs, "createListener",
-    channel.createListener(verified.preSharedKey))
-  say(`the device opened a tunnel listener on ${listenerPort}`)
-
-  // 3. the tunnel itself.
-  const vpn: any = (globalThis as any).VPN
-  if (vpn === undefined) throw new Error("this build has no VPN API")
-  const tunnel: RsdTunnel = await within(timeoutMs * 2, "opening the RSD tunnel",
-    vpn.localDevVPN.openRSDTunnel({
-      host: options.address,
-      port: listenerPort,
-      preSharedKey: verified.preSharedKey,
-    }))
-  const state = await tunnel.getState()
-  if (typeof state.rsdPort !== "number") {
-    throw new Error(`the tunnel reported no RSD port: ${JSON.stringify(state)}`)
-  }
-  say(`tunnel up — RSD on port ${state.rsdPort} at ${state.serverAddress ?? options.address}`)
-
-  // 4. the control connection, whose reply carries the service table. The UUID is ours to pick.
-  const control = new TunnelStream(await connectOn(tunnel, state.rsdPort, "the RSD control connection"))
-  const handshake = await within(timeoutMs, "the RSD handshake",
-    RsdClient.connect(control, randomBytes(16) as Bytes))
-  say(`the device advertised ${handshake.services.size} services`)
-
-  try { socket.destroy() } catch { /* remoted may have closed it already */ }
-
-  return {
-    handshake,
-    open: async serviceName => {
-      const service = requireService(handshake, serviceName)
-      return new TunnelStream(await connectOn(tunnel, service.port, serviceName))
-    },
-    close: async () => {
-      try { await tunnel.close() } catch { /* the tunnel may be gone already */ }
-    },
+    await close()
+    throw error
   }
 }
 
@@ -147,12 +167,22 @@ export async function openDeviceLink(options: OpenDeviceOptions): Promise<Device
  * A step cannot be allowed to hang: `setTimeout` inside a socket callback is refused by the
  * runtime, so the timer is armed here, before anything async starts, and cancelled after.
  */
-function within<T>(ms: number, label: string, work: Promise<T>): Promise<T> {
+function within<T>(ms: number, label: string, work: Promise<T>, closeLate?: (value: T) => Promise<void>): Promise<T> {
+  let expired = false
   let handle: number | null = null
   const timeout = new Promise<never>((_, reject) => {
-    handle = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    handle = setTimeout(() => {
+      expired = true
+      reject(new Error(`${label} timed out after ${ms / 1000}s`))
+    }, ms)
   })
-  return Promise.race([work, timeout]).finally(() => {
+  const guarded = work.then(async value => {
+    if (expired && closeLate) {
+      try { await closeLate(value) } catch { /* late native resource may already be closed */ }
+    }
+    return value
+  })
+  return Promise.race([guarded, timeout]).finally(() => {
     if (handle !== null) clearTimeout(handle)
   })
 }

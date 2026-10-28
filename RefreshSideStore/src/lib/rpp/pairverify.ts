@@ -13,6 +13,7 @@ import { PV_MSG03, chacha20Poly1305Encrypt, messageNonce } from "./aead"
 import { pairVerifyEncryptKey } from "./hkdf"
 import type { PairingFile } from "./pairstore"
 import { PeerFrames, type RPPeer } from "./pairsetup"
+import { RPChannel } from "./framing"
 
 /** The wire protocol version pair-verify is negotiated with. */
 export const VERIFY_WIRE_PROTOCOL_VERSION = 19
@@ -97,6 +98,8 @@ export interface PairVerifyOptions {
 }
 
 export interface PairVerifyResult {
+  /** Continue the same host envelope sequence when switching to encrypted requests. */
+  channel: RPChannel
   /** The raw X25519 output — the TLS-PSK key, byte for byte. */
   preSharedKey: Bytes
   /** Our ephemeral public key, as sent in M1. */
@@ -106,11 +109,11 @@ export interface PairVerifyResult {
 }
 
 export class PairVerifyClient {
-  /** Its own counter, independent of any other channel on the same socket. */
+  /** Shared with the encrypted channel so envelope sequence numbers remain continuous. */
   private readonly frames: PeerFrames
 
   constructor(private readonly options: PairVerifyOptions, peer: RPPeer) {
-    this.frames = new PeerFrames(peer, "pair-verify")
+    this.frames = new PeerFrames(peer, "pair-verify", new RPChannel("host"))
   }
 
   async run(): Promise<PairVerifyResult> {
@@ -188,7 +191,7 @@ export class PairVerifyClient {
       throw new Error(`pair-verify: expected M4 (State=4), got State=${m4State}`)
     }
 
-    return { preSharedKey, hostPublicKey, devicePublicKey: devicePublicKey }
+    return { preSharedKey, hostPublicKey, devicePublicKey, channel: this.frames.channel }
   }
 }
 

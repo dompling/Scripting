@@ -3,7 +3,8 @@
 import { parseProvisioningProfile } from "./lib/sign/provisioning"
 import { PairStore } from "./lib/rpp/pairstore"
 import { nativePair, type PairResult } from "./lib/reader/native-pair"
-import { openDeviceLink, MisagentClient, probeTcp, SERVICES } from "./lib/rsd"
+import { MisagentClient, SERVICES } from "./lib/rsd"
+import { connectReader } from "./lib/reader/connection"
 import { listInstalledApps } from "./lib/rsd/installed-apps"
 import { isExtensionId, isShortTermDevelopmentProfile } from "./lib/reader/filter"
 import type { AppRecord } from "./model"
@@ -45,40 +46,6 @@ export function saveRppPort(port: string): void {
   Storage.set(RPP_PORT_KEY, port.trim())
 }
 
-function validPort(port: number): boolean { return Number.isInteger(port) && port > 0 && port <= 65535 }
-
-/** Best-effort RemotePairing service discovery, identical to the expiry reader's fallback strategy. */
-async function discoverBonjourPorts(log: (message: string) => void, timeoutMs = 1400): Promise<number[]> {
-  const Bonjour: any = (globalThis as any).Bonjour
-  if (!Bonjour || typeof Bonjour.browse !== "function") return []
-  const ports = new Set<number>()
-  let browser: any = null
-  let finish = () => {}
-  const finished = new Promise<void>(resolve => { finish = resolve })
-  const timer = setTimeout(() => finish(), timeoutMs)
-  try {
-    browser = Bonjour.browse({
-      type: "_remotepairing._tcp", includePeerToPeer: true,
-      onFound: (service: any) => { const port = Number(service?.port); if (validPort(port)) ports.add(port) },
-      onError: () => finish(),
-    })
-    await finished
-  } catch (error) {
-    log(`Bonjour 探测不可用：${error instanceof Error ? error.message : String(error)}`)
-  } finally {
-    clearTimeout(timer)
-    try { browser?.stop?.() } catch {}
-  }
-  return Array.from(ports)
-}
-
-async function candidatePorts(preferred: number, log: (message: string) => void): Promise<number[]> {
-  // 如果首选端口（即上次成功扫描保存的端口）直接有效，优先极速尝试首选端口，避免等待 Bonjour 漫长的发现超时
-  const ports = Array.from(new Set([preferred, 62554, 49152].filter(validPort)))
-  log(`快速候选端口：${ports.join(", ")}`)
-  return ports
-}
-
 export function hasRppPairing(): boolean {
   return new PairStore().hasDeviceIrk()
 }
@@ -102,32 +69,7 @@ export interface RppExpiryResult {
 }
 
 export async function readExpiryViaRpp(host: string, preferredPort: number, log: (message: string) => void = () => {}): Promise<RppExpiryResult> {
-  const pair = new PairStore()
-  if (!pair.hasDeviceIrk()) throw new Error("没有 RPP 配对记录。请先完成设备配对，或从文件/剪贴板导入已有配对记录。")
-  const address = rppHost() === host ? host : host.trim()
-  const ports = await candidatePorts(validPort(preferredPort) ? preferredPort : 62554, log)
-  let link: Awaited<ReturnType<typeof openDeviceLink>> | null = null
-  let chosenPort = 0
-  const failures: string[] = []
-  for (const port of ports) {
-    const probe = await probeTcp(address, port, 1800)
-    if (!probe.open) {
-      failures.push(`${port}: ${probe.code ?? "不可达"}`)
-      log(`${address}:${port} 不可达（${probe.code ?? "未知"}）`)
-      continue
-    }
-    log(`${address}:${port} 可连接，正在 pair-verify…`)
-    try {
-      link = await openDeviceLink({ address, remotedPort: port, stepTimeoutMs: 11000, onStep: log })
-      chosenPort = port
-      break
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      failures.push(`${port}: ${message}`)
-      log(`端口 ${port} 建立隧道失败：${message}`)
-    }
-  }
-  if (link === null) throw new Error(`未能建立只读 RSD 会话。${failures.join("；").slice(0, 1200)}`)
+  const { link, host: address, port: chosenPort } = await connectReader(host, preferredPort, log)
   try {
     log("正在读取系统描述文件…")
     const misagent = await MisagentClient.connect(await link.open(SERVICES.misagent), "RefreshSideStore-expiry-read")

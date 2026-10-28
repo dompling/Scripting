@@ -81,18 +81,17 @@ export function createListenerPort(reply: unknown): number {
  * device expects the reply under the same value as the request.
  */
 export class StreamChannel {
-  private readonly channel = new RPChannel("host")
   private readonly clientKey: Bytes
   private readonly serverKey: Bytes
   private counter = 0n
 
-  private constructor(clientKey: Bytes, serverKey: Bytes, private readonly peer: RPPeer) {
+  private constructor(clientKey: Bytes, serverKey: Bytes, private readonly peer: RPPeer, private readonly channel: RPChannel) {
     this.clientKey = clientKey
     this.serverKey = serverKey
   }
 
   /** Derives both directions from the pair-verify secret. */
-  static async connect(sharedSecret: Bytes, peer: RPPeer): Promise<StreamChannel> {
+  static async connect(sharedSecret: Bytes, peer: RPPeer, channel = new RPChannel("host")): Promise<StreamChannel> {
     if (sharedSecret.length !== 32) {
       throw new Error(`stream: the shared secret must be 32 bytes, got ${sharedSecret.length}`)
     }
@@ -100,7 +99,7 @@ export class StreamChannel {
       streamKey(sharedSecret, "client"),
       streamKey(sharedSecret, "server"),
     ])
-    return new StreamChannel(clientKey, serverKey, peer)
+    return new StreamChannel(clientKey, serverKey, peer, channel)
   }
 
   private async send(payload: unknown): Promise<void> {
