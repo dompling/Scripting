@@ -108,6 +108,7 @@ export function Dial({ state, settings, now, size = 160, showRefreshTime = true 
       <Circle fill="white" frame={{ width: p(6.8), height: p(6.8) }} shadow={{ color: "rgba(255,255,255,0.95)", radius: p(1.5) }} />
     </ZStack> : null}
     <Text font={p(9)} fontWeight="semibold" foregroundStyle={value.expired ? "systemRed" : "secondaryLabel"}
+      lineLimit={1} minScaleFactor={0.7} allowsTightening={true}
       frame={{ width: p(70), height: p(16) }}
       background={{
         style: colorWithAlpha(markerColor, 0.10),
@@ -116,15 +117,17 @@ export function Dial({ state, settings, now, size = 160, showRefreshTime = true 
       position={{ x: p(80), y: p(70) }}
     >{status}</Text>
     <Text font={p(36)} fontWeight="bold" fontDesign="rounded" foregroundStyle="label"
+      lineLimit={1} minScaleFactor={0.55} allowsTightening={true}
+      frame={{ width: p(94), alignment: "center" }}
       position={{ x: p(80), y: p(99) }}>{value.text}</Text>
-    <HStack spacing={p(4)} frame={{ width: p(114), height: p(24) }}
+    <HStack spacing={p(4)} padding={{ horizontal: p(5) }} frame={{ width: p(116), height: p(24) }}
       background={{
         style: colorWithAlpha(markerColor, 0.10),
         shape: "capsule",
       }}
       position={{ x: p(80), y: p(140) }}>
       <Image systemName="clock.fill" foregroundStyle={value.expired ? "systemRed" : markerColor} font={p(11)} />
-      <Text font={p(10.5)} fontWeight="semibold" foregroundStyle="label" lineLimit={1}>
+      <Text font={p(10.5)} fontWeight="semibold" foregroundStyle="label" lineLimit={1} minScaleFactor={0.7} allowsTightening={true}>
         {app ? `到期: ${shortDate(app.expiresAt)}` : "请先打开脚本配置"}
       </Text>
     </HStack>
@@ -181,7 +184,7 @@ export function WidgetView({ state, settings, now, medium = false }: {
                   frame={{ width: Math.max(0, rightWidth - 62 * scale), alignment: "leading" }}>{item.name}</Text>
                 <Spacer minLength={0} />
                 <Text font={10 * scale} fontWeight="medium" foregroundStyle={value.expired ? "systemRed" : "secondaryLabel"}
-                  frame={{ width: 42 * scale, alignment: "trailing" }} lineLimit={1}>{value.expired ? "已到期" : `${value.text} 天`}</Text>
+                  frame={{ width: 42 * scale, alignment: "trailing" }} lineLimit={1} minScaleFactor={0.7} allowsTightening={true}>{value.expired ? "已到期" : `${value.text} 天`}</Text>
               </HStack>
               <ProgressBlocks expiresAt={item.expiresAt} now={now} totalDays={settings.totalDays} width={rightWidth} />
             </VStack>
